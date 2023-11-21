@@ -1,0 +1,70 @@
+otelcol.receiver.otlp "default" {
+  output {
+    metrics = [otelcol.exporter.prometheus.default.input]
+    logs    = [otelcol.exporter.loki.default.input]
+    traces  = [otelcol.processor.batch.default.input,otelcol.connector.servicegraph.default.input,
+    otelcol.connector.spanmetrics.default.input]
+  }
+}
+
+otelcol.connector.servicegraph "default" {
+  dimensions = ["http.method"]
+  output {
+    metrics = [otelcol.exporter.prometheus.default.input]
+  }
+}
+
+otelcol.connector.spanmetrics "default" {
+  histogram {
+    exponential {}
+  }
+
+  output {
+    metrics = [otelcol.exporter.prometheus.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    metrics = []
+    logs    = []
+    traces  = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+
+otelcol.exporter.otlp "tempo" {
+    client {
+        endpoint = "tempo:4317"
+    }
+}
+
+
+otelcol.exporter.prometheus "default" {
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+prometheus.remote_write "mimir" {
+  endpoint {
+    url = "http://mimir:9009/api/prom/push"
+   
+  }
+}
+
+otelcol.exporter.loki "default" {
+  forward_to = [loki.write.local.receiver]
+}
+  
+loki.source.file "tmpfiles" {
+  targets    = [
+    {__path__ = "C:/tempo/application.log", "color" = "Yellow"},
+  ]
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+	
+  }
+}

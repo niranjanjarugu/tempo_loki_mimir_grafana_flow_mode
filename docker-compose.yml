@@ -1,0 +1,90 @@
+version: "2.1"
+volumes:
+  grafana:
+  postgres:
+services:
+
+# Static Mode
+#  agent:
+#    image: grafana/agent:v0.34.3
+#    ports:
+#      - "12347:12345"
+#      - "12348:12348"
+#      - "6832:6832"
+#      - "55679:55679"
+#    volumes:
+#      - "./agent/config.yaml:/etc/agent/agent.yaml"
+#    command: [
+#      "-config.file=/etc/agent/agent.yaml",
+#      "-server.http.address=0.0.0.0:12345",
+#    ]
+
+#  Agent Flow Mode
+  agent:
+    image: grafana/agent:v0.37.4
+    ports:
+      - "12347:12345"
+      - "12348:12348"
+      - "6832:6832"
+      - "55679:55679"
+    volumes:
+      - "./agent/config.river:/etc/agent/config.river"
+      - "./agent/application_secrets.txt:/etc/agent/application_secrets.txt"
+    environment:
+      - AGENT_MODE=flow
+    command: [
+      "run",
+      "--server.http.listen-addr=0.0.0.0:12345",
+      "/etc/agent/config.river",
+    ]
+
+  # The Grafana dashboarding server.
+  grafana:
+    image: grafana/grafana:main
+    volumes:
+      - "./grafana/definitions:/var/lib/grafana/dashboards"
+      - "./grafana/provisioning:/etc/grafana/provisioning"
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_FEATURE_TOGGLES_ENABLE=flameGraph traceqlSearch correlations traceQLStreaming metricsSummary traceqlEditor
+
+#  ---- Grafana On-Call Support.
+
+#      - GF_AUTH_ANONYMOUS_ENABLED=true
+#      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+#      - GF_AUTH_DISABLE_LOGIN_FORM=true
+#      - GF_SMTP_ENABLED=true
+#      - GF_SMTP_HOST= smtp.gmail.com
+#      - GF_SMTP_PORT= 587
+#      - GF_SMTP_USER=ext-v.niranjana@globant.com
+#      - GF_SMTP_PASSWORD=Manusha@591
+#      - GF_SMTP_FROM_NAME=Grafana
+#      - GF_SMTP_FROM_ADDRESS=ext-v.niranjana@globant.com
+
+  # The Tempo service stores traces send to it by Grafana Agent, and takes
+  # queries from Grafana to visualise those traces.
+  tempo:
+    image: grafana/tempo:2.2.0
+    ports:
+      - "3200:3200"
+      - "4317:4317"
+      - "4318:4318"
+      - "9411:9411"
+      - "14250:14250"
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - "./tempo/tempo.yaml:/etc/tempo.yaml"
+
+  loki:
+    image: grafana/loki:2.8.3
+    ports:
+      - "3100:3100"
+
+  mimir:
+    image: grafana/mimir:2.9.0
+    command: ["-ingester.native-histograms-ingestion-enabled=true", "-config.file=/etc/mimir.yaml"]
+    ports:
+      - "9009:9009"
+    volumes:
+      - "./mimir/mimir.yaml:/etc/mimir.yaml"
